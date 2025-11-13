@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LWA Training Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <style>
+    body { background:#f4f6f9; font-family:system-ui; transition:all .3s; }
+    body.dark { background:#121212; color:#e0e0e0; }
+    body.dark .card { background:#1e1e1e; color:#e0e0e0; border:1px solid #333; }
+    body.dark table th { background:#343a40; color:#fff; }
+    body.dark .table { color:#e0e0e0; }
+    body.dark .table-hover tbody tr:hover { background:#2c2c2c; }
+    body.dark .list-group-item { background:#2c2c2c!important; color:#e0e0e0!important; border-color:#444!important; }
+    body.dark .list-group-item:hover { background:#3a3a3a!important; }
+    .card { box-shadow:0 4px 12px rgba(0,0,0,.07); border:none; border-radius:12px; }
+    .badge-due { background:#28a745; color:#fff; }
+    .badge-over { background:#dc3545; color:#fff; }
+    .badge-comp { background:#6c757d; color:#fff; }
+    .badge-notify { background:#ffc107; color:#000; }
+    .badge-norecord { background:#6c757d; color:#fff; }
+    .list-group-item:hover { background:#e9ecef; cursor:pointer; }
+    table th { background:#343a40; color:#fff; }
+    .overdue-banner { background:#dc3545; color:#fff; padding:10px; border-radius:8px; margin-bottom:20px; }
+    body.dark .overdue-banner { background:#bb2d3b; }
+    .controls-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; }
+    .control-input { width:240px!important; max-width:100%; }
+    .refresh-btn { white-space:nowrap; }
+    @media(max-width:576px){.controls-row{flex-direction:column;align-items:stretch}.control-input{width:100%!important}}
+    .training-link { color:#007bff; text-decoration:underline; }
+    body.dark .training-link { color:#4dabf7; }
+    .schedule-training { color:inherit; font-weight:500; }
+    body.dark .schedule-training { color:#ccc; }
+  </style>
+</head>
+<body class="p-3">
+
+<div class="container-fluid">
+  <div id="overdueBanner" class="overdue-banner d-none">
+    <strong>Overdue Alert:</strong> <span id="overdueCount"></span> trainings overdue for <span id="overdueEmps"></span> employees.
+  </div>
+  <div class="card mb-4"><div class="card-body text-center py-4">
+    <h1 class="display-5 fw-bold text-primary">LWA Training Tracker</h1>
+    <p class="lead">Live from Google Sheets — Click to explore</p>
+    <div class="status-bar text-muted" id="status">Loading...</div>
+    <div class="controls-row mt-3">
+      <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
+      <select id="employeeSelect" class="form-select form-select-sm control-input"><option value="">— Jump to employee —</option></select>
+      <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="buildData()">Refresh</button>
+      <div class="form-check form-switch ms-2">
+        <input class="form-check-input" type="checkbox" id="darkModeToggle">
+        <label class="form-check-label text-muted small" for="darkModeToggle">Dark</label>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="row">
+    <div class="col-lg-4 mb-4"><div class="card h-100">
+      <div class="card-header bg-primary text-white"><strong>Training Topics</strong></div>
+      <div class="card-body p-0"><div id="topicList" class="list-group list-group-flush" style="max-height:70vh;overflow-y:auto"></div></div>
+    </div></div>
+    <div class="col-lg-8"><div id="detailPane" class="card h-100">
+      <div class="card-body d-flex align-items-center justify-content-center text-muted">
+        <p class="mb-0 fs-5">Click a topic or employee</p>
+      </div>
+    </div></div>
+  </div>
+</div>
+
+<script>
+const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMwtFhCZCDqPeWROrxXY6ytBvitNzyVKfGyNRQ5lfTXChyrqJDwBET4tRF4ocoSsafk0O0fUwoDxj6/pub?gid=1442283748&single=true&output=csv';
+const RECIPIENT_EMAIL = 'your-team@company.com';
+
+const LINKS = {
+  "Basic Fire prevention & Fire Watch Quiz": "https://www.surveymonkey.com/r/LWABasicFirePreventionQuiz",
+  "COVID-19 Awareness Training": "https://www.surveymonkey.com/r/LWACovid-19TrainingGuidelines",
+  "Electrical Hazard Awareness": "https://www.surveymonkey.com/r/LWAElectricalQuiz",
+  "Fall Protection Awareness Training": "https://www.surveymonkey.com/r/LWAFallProtectionQuiz",
+  "Hot Work Safety Awareness Link": "https://www.surveymonkey.com/r/LWAHotWork",
+  "Indoor Heat Illness Prevention": "https://www.surveymonkey.com/r/LWAIndoorHeatIllness",
+  "Ladder Safety Awareness": "https://www.surveymonkey.com/r/LWALadderSafety",
+  "Lead Awareness Training": "https://www.surveymonkey.com/r/LWAleadAwarenessTraining",
+  "Lockout/Tagout Awareness Link": "https://www.surveymonkey.com/r/LWALOTOQUIZ",
+  "Machine Safeguarding Awareness": "https://www.surveymonkey.com/r/LWAMachineGuardQuiz",
+  "Orientation Awareness Training": "https://www.surveymonkey.com/r/LWAOrientationAwareness",
+  "Outdoor Heat Illness Awareness": "https://www.surveymonkey.com/r/LWAHeatIllnessQuiz",
+  "Overhead Crane Operation Awareness Training": "https://www.surveymonkey.com/r/LWACraneOperationQuiz",
+  "Personal Protective Equipment Awareness": "https://www.surveymonkey.com/r/LWAPPEQuiz",
+  "Prop 65 Awareness Training": "https://www.surveymonkey.com/r/LWAProp65Quiz",
+  "Respiratory Protection Awareness": "https://www.surveymonkey.com/r/LWARespiratoryProtectionQuiz",
+  "Silica Dust Exposure Awareness": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
+  "Valley Fever Awareness": "https://www.surveymonkey.com/r/LWABValleyFeverAwarenessTraining",
+  "Wildfire Smoke Training": "https://www.surveymonkey.com/r/LWAWildFireTraining",
+  "Workplace Violence Prevention Training": "https://www.surveymonkey.com/r/LWAWVPP",
+  "Workplace Violence Prevention": "https://www.surveymonkey.com/r/LWAWVPP"
+};
+
+let records = [], topicMap = {}, employeeMap = {}, uniqueEmployees = new Set(), allTopics = new Set();
+
+async function loadData() {
+  document.getElementById('status').innerHTML = 'Fetching data...';
+  try {
+    const resp = await fetch(SHEET_URL + '&_=' + Date.now());
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const headers = lines[0].split(',').map(h => h.trim());
+    records = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const rec = {};
+      headers.forEach((h, i) => rec[h] = vals[i] || '');
+      return rec;
+    }).filter(r => r['Employee Name'] && r['Topic']);
+    document.getElementById('status').innerHTML = `Loaded <strong>${records.length}</strong> records`;
+    return records;
+  } catch (err) {
+    document.getElementById('status').innerHTML = `<span class="text-danger">Error: ${err.message}</span>`;
+    return [];
+  }
+}
+
+function parseTextDate(dateStr) {
+  if (!dateStr) return 'N/A';
+  const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+  const match = dateStr.match(/(\w{3})\s+(\d{1,2}),\s+(\d{4})/);
+  if (match) {
+    const [_, month, day, year] = match;
+    return new Date(year, months[month], day).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+  return dateStr || 'N/A';
+}
+
+function normalizeName(name) {
+  return name?.replace(/Perira/gi, 'Pereira')
+    .replace(/Silviera/gi, 'Silveira')
+    .replace(/[^\w\s]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ') || '';
+}
+
+function badge(r) {
+  const s = r['Status'] || '';
+  const days = r['Days Remaining'] || '';
+  const comp = r['Completion Date'] ? parseTextDate(r['Completion Date']) : '';
+  if (s === 'Completed') return `<span class="badge badge-comp">Completed${comp !== 'N/A' ? ' (' + comp + ')' : ''}</span>`;
+  if (s === 'Not Due') return `<span class="badge badge-due">Not Due${days ? ' (' + days + 'd)' : ''}</span>`;
+  if (s === 'Overdue') return `<span class="badge badge-over">Overdue${days ? ' (' + days + 'd)' : ''}</span>`;
+  return `<span class="badge bg-secondary">${s || '—'}</span>`;
+}
+
+function notifyBadge(r) {
+  return r['Status'] === 'Overdue' && parseInt(r['Days Remaining']) < 0 ? '<span class="badge badge-notify ms-1">Notify</span>' : '';
+}
+
+async function exportPDF(title) {
+  try {
+    const table = document.getElementById('detailTable');
+    if (!table) { alert('Table not ready — try again'); return; }
+    const clone = table.cloneNode(true);
+    clone.querySelectorAll('a.training-link').forEach(a => {
+      const link = a.getAttribute('href');
+      const text = a.textContent;
+      const span = document.createElement('span');
+      span.textContent = `${text} (${link})`;
+      a.parentNode.replaceChild(span, a);
+    });
+    clone.querySelectorAll('.schedule-training').forEach(el => {
+      const span = document.createElement('span');
+      span.textContent = el.textContent;
+      el.parentNode.replaceChild(span, el);
+    });
+    const canvas = await html2canvas(clone, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgWidth = 210;
+    const pageHeight = 295;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 10;
+    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft >= 0) {
+      position = heightLeft - imgHeight + 10;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+    pdf.save(`${title.replace(/ /g, '_')}.pdf`);
+  } catch (err) {
+    console.error('PDF Error:', err);
+    alert('PDF failed — check console.');
+  }
+}
+
+function openOutlookEmail(normName) {
+  const empData = employeeMap[normName];
+  if (!empData) return;
+  const originalName = empData.original;
+  const overdues = Object.entries(empData.records)
+    .filter(([topic, r]) => r['Status'] === 'Overdue')
+    .map(([topic, r]) => {
+      const link = LINKS[topic] || null;
+      const expires = r['Expiration Date'] ? parseTextDate(r['Expiration Date']) : 'N/A';
+      const action = link ? `<a href="${link}">${link}</a>` : 'Schedule Training';
+      return `<li>${topic} (Expires: ${expires}) — ${action}</li>`;
+    });
+
+  const subject = `Overdue Training: ${originalName}`;
+  const htmlBody = `
+    <html>
+      <body>
+        <p>Hi Team,</p>
+        <p>${originalName} has ${overdues.length} overdue training${overdues.length !== 1 ? 's' : ''}:</p>
+        <ul>${overdues.length ? overdues.join('') : '<li>None</li>'}</ul>
+        <p>Please have ${originalName} complete the training ASAP.</p>
+        <p>Generated: ${new Date().toLocaleString()}<br>LWA Training Tracker</p>
+      </body>
+    </html>
+  `.trim();
+
+  const mailtoLink = `mailto:${RECIPIENT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(htmlBody)}`;
+  window.location.href = mailtoLink;
+}
+
+async function buildData() {
+  records = await loadData();
+  if (!records.length) return;
+
+  topicMap = {}; employeeMap = {}; uniqueEmployees = new Set(); allTopics = new Set();
+  let overdueCount = 0, overdueEmps = new Set();
+
+  records.forEach(r => {
+    const originalName = r['Employee Name'];
+    const topic = r['Topic'];
+    const status = r['Status'] || '';
+
+    const normName = normalizeName(originalName);
+    if (!normName) return;
+
+    if (!employeeMap[normName]) {
+      employeeMap[normName] = { original: originalName, records: {} };
+    }
+    employeeMap[normName].records[topic] = r;
+    uniqueEmployees.add(normName);
+    allTopics.add(topic);  // <-- CRITICAL: Populate allTopics
+
+    if (topic) {
+      if (!topicMap[topic]) topicMap[topic] = [];
+      topicMap[topic].push({ ...r, 'Employee Name': originalName });
+    }
+
+    if (status === 'Overdue') {
+      overdueCount++;
+      overdueEmps.add(normName);
+    }
+  });
+
+  const banner = document.getElementById('overdueBanner');
+  document.getElementById('overdueCount').textContent = overdueCount;
+  document.getElementById('overdueEmps').textContent = overdueEmps.size;
+  if (overdueCount > 0) banner.classList.remove('d-none');
+  else banner.classList.add('d-none');
+
+  renderTopics();
+  populateEmployeeDropdown();
+}
+
+function renderTopics(filter = '') {
+  const el = document.getElementById('topicList');
+  el.innerHTML = '';
+  Object.keys(topicMap).sort((a,b) => a.localeCompare(b)).forEach(t => {
+    if (filter && !t.toLowerCase().includes(filter.toLowerCase())) return;
+    const count = topicMap[t].length;
+    const link = LINKS[t] || '';
+    const item = document.createElement('a');
+    item.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+    if (link) {
+      item.innerHTML = `<a href="${link}" target="_blank" class="training-link">${t}</a> <span class="badge bg-primary rounded-pill">${count}</span>`;
+    } else {
+      item.innerHTML = `<span class="schedule-training">${t}</span> <span class="badge bg-primary rounded-pill">${count}</span>`;
+    }
+    item.onclick = (e) => { if (e.target.tagName === 'A') return; showTopicDetail(t); };
+    el.appendChild(item);
+  });
+}
+
+document.getElementById('topicSearch').addEventListener('input', e => renderTopics(e.target.value.trim()));
+
+function populateEmployeeDropdown() {
+  const select = document.getElementById('employeeSelect');
+  select.innerHTML = '<option value="">— Jump to employee —</option>';
+  Array.from(uniqueEmployees).sort((a,b) => a.localeCompare(b)).forEach(normName => {
+    const originalName = employeeMap[normName].original;
+    const opt = document.createElement('option');
+    opt.value = normName;
+    opt.textContent = originalName;
+    select.appendChild(opt);
+  });
+  select.onchange = e => e.target.value && showEmployeeDetail(e.target.value);
+}
+
+function showTopicDetail(topic) {
+  const recs = topicMap[topic] || [];
+  const link = LINKS[topic] || '';
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${link ? `<a href="${link}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`}</h4><button class="btn btn-success btn-sm" onclick="exportPDF('Topic - ${topic}')">PDF</button></div><p class="text-muted">${recs.length} record(s)</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Employee</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
+  recs.forEach(r => {
+    const normName = normalizeName(r['Employee Name']);
+    const displayName = employeeMap[normName]?.original || r['Employee Name'];
+    html += `<tr><td><a href="javascript:void(0)" onclick="showEmployeeDetail('${normName}')">${displayName}</a></td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td>${r['Days Remaining'] || '-'}</td><td>${badge(r)}${notifyBadge(r)}</td></tr>`;
+  });
+  html += `</tbody></table></div></div>`;
+  document.getElementById('detailPane').innerHTML = html;
+}
+
+function showEmployeeDetail(normName) {
+  const empData = employeeMap[normName];
+  if (!empData) return;
+  const originalName = empData.original;
+  const overdues = Object.entries(empData.records).filter(([t, r]) => r['Status'] === 'Overdue').length;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${originalName}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF('Employee - ${originalName}')">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${normName}')">Send Email</button></div></div><p class="text-muted">All trainings | Overdues: ${overdues}</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th><th>Notify</th></tr></thead><tbody>`;
+  Array.from(allTopics).sort((a,b) => a.localeCompare(b)).forEach(topic => {
+    const r = empData.records[topic];
+    const link = LINKS[topic] || '';
+    const topicCell = link ? `<a href="${link}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`;
+    if (r) {
+      html += `<tr><td>${topicCell}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td>${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td><td>${notifyBadge(r)}</td></tr>`;
+    } else {
+      html += `<tr class="table-secondary"><td>${topicCell}</td><td colspan="5"><span class="badge badge-norecord">No Record</span></td></tr>`;
+    }
+  });
+  html += `</tbody></table></div></div>`;
+  document.getElementById('detailPane').innerHTML = html;
+}
+
+document.getElementById('darkModeToggle').addEventListener('change', e => {
+  document.body.classList.toggle('dark', e.target.checked);
+  localStorage.setItem('darkMode', e.target.checked);
+});
+if (localStorage.getItem('darkMode') === 'true') {
+  document.getElementById('darkModeToggle').checked = true;
+  document.body.classList.add('dark');
+}
+
+buildData();
+setInterval(buildData, 600000);
+</script>
+</body>
+</html>

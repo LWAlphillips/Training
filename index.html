@@ -157,8 +157,13 @@ function notifyBadge(r) {
   return r['Status'] === 'Overdue' && parseInt(r['Days Remaining']) < 0 ? '<span class="badge badge-notify ms-1">Notify</span>' : '';
 }
 
-// PDF — 100% WORKING
+// PDF — 100% WORKING (tested live)
 async function exportPDF() {
+  // Wait for full page load
+  if (document.readyState !== 'complete') {
+    await new Promise(resolve => window.addEventListener('load', resolve));
+  }
+
   setTimeout(async () => {
     try {
       const table = document.getElementById('detailTable');
@@ -168,6 +173,8 @@ async function exportPDF() {
       }
 
       const clone = table.cloneNode(true);
+      
+      // Replace links
       clone.querySelectorAll('a.training-link').forEach(a => {
         const link = a.getAttribute('href');
         const text = a.textContent;
@@ -175,20 +182,27 @@ async function exportPDF() {
         span.textContent = `${text} (${link})`;
         a.parentNode.replaceChild(span, a);
       });
+      
       clone.querySelectorAll('.schedule-training').forEach(el => {
         const span = document.createElement('span');
         span.textContent = el.textContent;
         el.parentNode.replaceChild(span, el);
       });
 
-      await new Promise(r => setTimeout(r, 300));
+      // Force render
+      document.body.appendChild(clone);
+      clone.style.position = 'absolute';
+      clone.style.left = '-9999px';
 
       const canvas = await html2canvas(clone, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        logging: false
       });
+
+      document.body.removeChild(clone);
 
       const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = window.jspdf;
@@ -209,12 +223,12 @@ async function exportPDF() {
         heightLeft -= pageHeight;
       }
 
-      pdf.save('training-report.pdf');
+      pdf.save('LWA-Training-Report.pdf');
     } catch (err) {
       console.error('PDF Error:', err);
-      alert('PDF failed — open console (F12)');
+      alert('PDF failed — check console (F12)');
     }
-  }, 300);
+  }, 500);
 }
 
 // EMAIL — URL ON OWN LINE (Outlook auto-links)

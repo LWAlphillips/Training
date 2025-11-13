@@ -13,5 +13,7 @@ const LINKS = {
   "Personal Protective Equipment": "https://www.surveymonkey.com/r/LWAPPEQuiz",
   "Silica Awareness Training": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
   "Silica Dust Exposure": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
+  "Fire Prevention and Extinguishers": "https://www.surveymonkey.com/r/LWABasicFirePreventionQuiz",
   "Workplace Violence Prevention": "https://www.surveymonkey.com/r/LWAWVPP"
+
 };

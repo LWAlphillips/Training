@@ -13,10 +13,10 @@ export const LINKS = {
   "Heat Illness Prevention": "https://www.surveymonkey.com/r/LWAIndoorHeatIllness",
   "Personal Protective Equipment": "https://www.surveymonkey.com/r/LWAPPEQuiz",
   "Silica Awareness Training": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
-  "Silica Dust Exposure": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
   "Workplace Violence Prevention": "https://www.surveymonkey.com/r/LWAWVPP",
 
   // === NEW: FIRE SAFETY ===
   "Fire Prevention and Extinguishers": "https://www.surveymonkey.com/r/LWABasicFirePreventionQuiz",
   "Basic Fire prevention & Fire Watch Quiz": "https://www.surveymonkey.com/r/LWABasicFirePreventionQuiz"
 };
+

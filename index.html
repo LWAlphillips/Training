@@ -76,7 +76,6 @@ const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRMwtFhCZCDqP
 const RECIPIENT_EMAIL = 'your-team@company.com';
 
 const LINKS = {
-  // === EXACT NAMES FROM YOUR SHEET ===
   "Fall Protection": "https://www.surveymonkey.com/r/LWAFallProtectionQuiz",
   "Heat Illness Prevention": "https://www.surveymonkey.com/r/LWAIndoorHeatIllness",
   "Personal Protective Equipment": "https://www.surveymonkey.com/r/LWAPPEQuiz",
@@ -167,7 +166,7 @@ async function exportPDF() {
   } catch (e) { console.error(e); alert('PDF failed'); }
 }
 
-// EMAIL
+// EMAIL — CLICKABLE
 function openOutlookEmail(normName) {
   const emp = employeeMap[normName];
   if (!emp) return;
@@ -247,7 +246,8 @@ function populateEmployeeDropdown() {
 
 function showTopicDetail(topic) {
   const recs = topicMap[topic] || [];
-  const link = LINKS[topic] || Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
+  let link = LINKS[topic];
+  if (!link) link = Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
   const finalLink = link ? LINKS[link] : '';
   let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${finalLink ? `<a href="${finalLink}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`}</h4><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button></div><p class="text-muted">${recs.length} record(s)</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Employee</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
   recs.forEach(r => {
@@ -267,7 +267,8 @@ function showEmployeeDetail(norm) {
   let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">All trainings | Overdues: ${over}</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th><th>Notify</th></tr></thead><tbody>`;
   Array.from(allTopics).sort((a,b)=>a.localeCompare(b)).forEach(topic => {
     const r = emp.records[topic];
-    const link = LINKS[topic] || Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
+    let link = LINKS[topic];
+    if (!link) link = Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
     const finalLink = link ? LINKS[link] : '';
     const cell = finalLink ? `<a href="${finalLink}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`;
     if (r) {
@@ -294,4 +295,3 @@ setInterval(buildData, 600000);
 </script>
 </body>
 </html>
-

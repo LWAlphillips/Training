@@ -157,7 +157,7 @@ function notifyBadge(r) {
   return r['Status'] === 'Overdue' && parseInt(r['Days Remaining']) < 0 ? '<span class="badge badge-notify ms-1">Notify</span>' : '';
 }
 
-// PDF — FIXED: No args needed
+// PDF — FIXED: await + #detailTable
 async function exportPDF() {
   try {
     const table = document.getElementById('detailTable');
@@ -199,7 +199,7 @@ async function exportPDF() {
   }
 }
 
-// EMAIL — PLAIN TEXT + CLICKABLE URL
+// EMAIL — PLAIN TEXT + URL (Outlook auto-links)
 function openOutlookEmail(normName) {
   const empData = employeeMap[normName];
   if (!empData) return;

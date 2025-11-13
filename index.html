@@ -157,7 +157,8 @@ function notifyBadge(r) {
   return r['Status'] === 'Overdue' && parseInt(r['Days Remaining']) < 0 ? '<span class="badge badge-notify ms-1">Notify</span>' : '';
 }
 
-async function exportPDF(title) {
+// PDF — FIXED: No args needed
+async function exportPDF() {
   try {
     const table = document.getElementById('detailTable');
     if (!table) { alert('Table not ready — try again'); return; }
@@ -191,13 +192,14 @@ async function exportPDF(title) {
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
     }
-    pdf.save(`${title.replace(/ /g, '_')}.pdf`);
+    pdf.save('training-report.pdf');
   } catch (err) {
     console.error('PDF Error:', err);
     alert('PDF failed — check console.');
   }
 }
 
+// EMAIL — PLAIN TEXT + CLICKABLE URL
 function openOutlookEmail(normName) {
   const empData = employeeMap[normName];
   if (!empData) return;
@@ -207,24 +209,23 @@ function openOutlookEmail(normName) {
     .map(([topic, r]) => {
       const link = LINKS[topic] || null;
       const expires = r['Expiration Date'] ? parseTextDate(r['Expiration Date']) : 'N/A';
-      const action = link ? `<a href="${link}">${link}</a>` : 'Schedule Training';
-      return `<li>${topic} (Expires: ${expires}) — ${action}</li>`;
+      const action = link ? link : 'Schedule Training';
+      return `• ${topic} (Expires: ${expires}) — ${action}`;
     });
 
   const subject = `Overdue Training: ${originalName}`;
-  const htmlBody = `
-    <html>
-      <body>
-        <p>Hi Team,</p>
-        <p>${originalName} has ${overdues.length} overdue training${overdues.length !== 1 ? 's' : ''}:</p>
-        <ul>${overdues.length ? overdues.join('') : '<li>None</li>'}</ul>
-        <p>Please have ${originalName} complete the training ASAP.</p>
-        <p>Generated: ${new Date().toLocaleString()}<br>LWA Training Tracker</p>
-      </body>
-    </html>
-  `.trim();
+  const body = `Hi Team,
 
-  const mailtoLink = `mailto:${RECIPIENT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(htmlBody)}`;
+${originalName} has ${overdues.length} overdue training${overdues.length !== 1 ? 's' : ''}:
+
+${overdues.length ? overdues.join('\n') : '• None'}
+
+Please have ${originalName} complete the training ASAP.
+
+Generated: ${new Date().toLocaleString()}
+LWA Training Tracker`.trim();
+
+  const mailtoLink = `mailto:${RECIPIENT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   window.location.href = mailtoLink;
 }
 
@@ -248,7 +249,7 @@ async function buildData() {
     }
     employeeMap[normName].records[topic] = r;
     uniqueEmployees.add(normName);
-    allTopics.add(topic);  // <-- CRITICAL: Populate allTopics
+    allTopics.add(topic);
 
     if (topic) {
       if (!topicMap[topic]) topicMap[topic] = [];
@@ -308,7 +309,7 @@ function populateEmployeeDropdown() {
 function showTopicDetail(topic) {
   const recs = topicMap[topic] || [];
   const link = LINKS[topic] || '';
-  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${link ? `<a href="${link}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`}</h4><button class="btn btn-success btn-sm" onclick="exportPDF('Topic - ${topic}')">PDF</button></div><p class="text-muted">${recs.length} record(s)</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Employee</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${link ? `<a href="${link}" target="_blank" class="training-link">${topic}</a>` : `<span class="schedule-training">${topic}</span>`}</h4><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button></div><p class="text-muted">${recs.length} record(s)</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Employee</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
   recs.forEach(r => {
     const normName = normalizeName(r['Employee Name']);
     const displayName = employeeMap[normName]?.original || r['Employee Name'];
@@ -323,7 +324,7 @@ function showEmployeeDetail(normName) {
   if (!empData) return;
   const originalName = empData.original;
   const overdues = Object.entries(empData.records).filter(([t, r]) => r['Status'] === 'Overdue').length;
-  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${originalName}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF('Employee - ${originalName}')">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${normName}')">Send Email</button></div></div><p class="text-muted">All trainings | Overdues: ${overdues}</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th><th>Notify</th></tr></thead><tbody>`;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${originalName}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${normName}')">Send Email</button></div></div><p class="text-muted">All trainings | Overdues: ${overdues}</p><div class="table-responsive"><table id="detailTable" class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training</th><th>Expires</th><th>Days Left</th><th>Status</th><th>Notify</th></tr></thead><tbody>`;
   Array.from(allTopics).sort((a,b) => a.localeCompare(b)).forEach(topic => {
     const r = empData.records[topic];
     const link = LINKS[topic] || '';

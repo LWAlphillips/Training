@@ -178,7 +178,8 @@ function openOutlookEmail(normName) {
       const link = LINKS[topic] || 'Schedule Training';
       const trainDate = r['Training Date'] ? parseTextDate(r['Training Date']) : 'N/A';
       const exp = r['Expiration Date'] ? parseTextDate(r['Expiration Date']) : 'N/A';
-      return `• ${topic}\n  (Training: ${trainDate} | Expires: ${exp})\n  ${link}`;
+      const status = r['Status'] || 'Unknown';
+      return `• ${topic}\n  (Training: ${trainDate} | Expires: ${exp})\n  Status: ${status}\n  ${link}`;
     }).join('\n\n');
 
   const count = over.split('\n').filter(l => l.startsWith('•')).length;
@@ -311,4 +312,5 @@ setInterval(buildData, 600000);
 </script>
 </body>
 </html>
+
 

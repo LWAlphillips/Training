@@ -87,36 +87,76 @@ const RECIPIENT_EMAIL = 'your-team@company.com'; // ← CHANGE THIS TO THE REAL 
 
 const LINKS = {
   "Fall Protection": "https://www.surveymonkey.com/r/LWAFallProtectionQuiz",
-  "Heat Illness Prevention": "https://www.surveymonkey.com/r/LWAIndoorHeatIllness",
+  "Heat Illness Prevention (Indoor)": "https://www.surveymonkey.com/r/LWAIndoorHeatIllness",
   "Personal Protective Equipment": "https://www.surveymonkey.com/r/LWAPPEQuiz",
   "Silica Awareness Training": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
   "Silica Dust Exposure": "https://www.surveymonkey.com/r/LWASilicaDustExposure",
   "Workplace Violence Prevention": "https://www.surveymonkey.com/r/LWAWVPP",
   "Fire Prevention and Extinguishers": "https://www.surveymonkey.com/r/LWABasicFirePreventionQuiz"
-  // Add more SurveyMonkey links here when you create them
 };
 
-// COMPLETE LIST OF ALL TRAININGS FROM YOUR SHEET (used for employee view & email reminders)
-const FULL_TRAINING_LIST = [
+// FULL LIST OF ALL POSSIBLE TRAININGS (used for Topics sidebar)
+const ALL_TRAININGS = [
+  "40-Hour Hazwoper",
+  "Air Products- Martinez Safety Indoct",
+  "Andeaver Martinez Site Orientation",
+  "CRIS Certificate",
+  "Certified General Electrician",
   "Certified Rigger and Signaler",
+  "Chemical Hazard Safety",
+  "Confined Space",
+  "Electrical Safety Awareness",
+  "Fall Protection",
+  "Fire Prevention and Extinguishers",
+  "First Aid/CPR/AED",
+  "Forklift Training",
+  "Heat Illness Prevention (Indoor)",
+  "Heat Illness Prevention (Outdoor)",
+  "Intro to First Aid",
+  "LOTO",
+  "MEWP Fall Protection",
+  "Machine Safe Guarding",
+  "Mobile Elevated Work Platform",
+  "NCCO Crane Operations",
+  "Northern California RSO",
+  "OSCA Card",
+  "OSHA 10 Certificate",
+  "OSHA 30 Certificate",
+  "OSHA 500 Certificate",
+  "OSHA 510 Certificate",
+  "PG&E SAFE 0101 Training",
+  "Part 46 New Miner",
+  "Part 46 Refresher",
+  "Part 48 New Miner",
+  "Part 48 Refresher",
+  "Personal Protective Equipment",
+  "Respiratory Fit Testing",
+  "Respiratory Medical Questionnare",
+  "Shell Martinez Site Specific",
+  "Silica Awareness Training",
+  "Tesoro Martinez CA Site Specific",
+  "Valley Fever Awareness",
+  "Workplace Violence Prevention"
+];
+
+// REQUIRED TRAININGS (always shown in employee view + used for email reminders)
+const REQUIRED_TRAININGS = [
+  "40-Hour Hazwoper",
   "Confined Space",
   "Fall Protection",
   "Fire Prevention and Extinguishers",
   "First Aid/CPR/AED",
   "Forklift Training",
-  "Heat Illness Prevention",
-  "Intro to First Aid",
+  "Heat Illness Prevention (Indoor)",
+  "Heat Illness Prevention (Outdoor)",
   "Mobile Elevated Work Platform",
-  "NCCO Crane Operations",
-  "OSHA 30 Certificate",
+  "Personal Protective Equipment",
+  "Silica Awareness Training",
+  "Workplace Violence Prevention",
   "Part 46 New Miner",
   "Part 46 Refresher",
-  "Personal Protective Equipment",
   "Respiratory Fit Testing",
-  "Respiratory Medical Questionnare",
-  "Silica Awareness Training",
-  "Silica Dust Exposure",
-  "Workplace Violence Prevention"
+  "Respiratory Medical Questionnare"
 ];
 
 let records = [], topicMap = {}, employeeMap = {}, allTopics = new Set();
@@ -135,7 +175,7 @@ async function loadData() {
       const rec = {};
       headers.forEach((h, i) => rec[h] = vals[i] || '');
       return rec;
-    }).filter(r => r['Employee Name'] && r['Topic']); // RELAXED FILTER – loads even if Status is blank
+    }).filter(r => r['Employee Name'] && r['Topic']);
     document.getElementById('status').innerHTML = `Loaded <strong>${records.length}</strong> records`;
     return records;
   } catch (err) {
@@ -217,7 +257,7 @@ function openOutlookEmail(normName) {
 
   const actionItems = [];
 
-  FULL_TRAINING_LIST.forEach(topic => {
+  REQUIRED_TRAININGS.forEach(topic => {
     const r = emp.records[topic];
     let link = LINKS[topic] || Object.keys(LINKS).find(key => topic.includes(key) || key.includes(topic));
     const finalLink = link ? LINKS[link] : 'Schedule Training';
@@ -234,7 +274,7 @@ function openOutlookEmail(normName) {
   const count = actionItems.length;
   const body = `Hi ${firstName},
 
-You have ${count} training${count !== 1 ? 's' : ''} that ${count !== 1 ? 'are' : 'is'} either overdue or missing:
+You have ${count} required training${count !== 1 ? 's' : ''} that ${count !== 1 ? 'are' : 'is'} either overdue or missing:
 
 ${actionItems.join('\n\n') || '• None'}
 
@@ -244,7 +284,7 @@ Generated: ${new Date().toLocaleString()}
 
 LWA Training Tracker`;
 
-  location.href = `mailto:${RECIPIENT_EMAIL}?subject=Training Action Needed: ${encodeURIComponent(fullName)}&body=${encodeURIComponent(body)}`;
+  location.href = `mailto:${RECIPIENT_EMAIL}?subject=Required Training Action Needed: ${encodeURIComponent(fullName)}&body=${encodeURIComponent(body)}`;
 }
 
 async function buildData() {
@@ -284,9 +324,9 @@ async function buildData() {
 function renderTopics(filter = '') {
   const el = document.getElementById('topicList');
   el.innerHTML = '';
-  Object.keys(topicMap).sort((a,b) => a.localeCompare(b)).forEach(t => {
+  ALL_TRAININGS.sort().forEach(t => {
     if (filter && !t.toLowerCase().includes(filter.toLowerCase())) return;
-    const count = topicMap[t].length;
+    const count = topicMap[t]?.length || 0;
     let link = LINKS[t] || Object.keys(LINKS).find(key => t.includes(key) || key.includes(t));
     const finalLink = link ? LINKS[link] : '';
     const item = document.createElement('a');
@@ -334,9 +374,15 @@ function showEmployeeDetail(norm) {
   if (!emp) return;
   const name = emp.original;
   const over = Object.entries(emp.records).filter(([,r]) => r['Status'] === 'Overdue').length;
-  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">All trainings | Overdues: ${over}</p><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expiration Date</th><th>Days Remaining</th><th>Status</th></tr></thead><tbody>`;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">Required + Completed trainings | Overdues: ${over}</p><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expiration Date</th><th>Days Remaining</th><th>Status</th></tr></thead><tbody>`;
 
-  FULL_TRAINING_LIST.forEach(topic => {
+  // Combine required trainings (with No Record if missing) + any other trainings that have a record
+  const displayedTopics = new Set(REQUIRED_TRAININGS);
+
+  // Add any topics the employee actually has a record for (even if not required)
+  Object.keys(emp.records).forEach(topic => displayedTopics.add(topic));
+
+  Array.from(displayedTopics).sort().forEach(topic => {
     const r = emp.records[topic];
     let link = LINKS[topic] || Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
     const finalLink = link ? LINKS[link] : '';
@@ -344,6 +390,7 @@ function showEmployeeDetail(norm) {
     if (r) {
       html += `<tr><td>${cell}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td>${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
     } else {
+      // Only show "No Record" for required trainings that are missing
       html += `<tr class="table-secondary"><td>${cell}</td><td colspan="5"><span class="badge badge-norecord">No Record</span></td></tr>`;
     }
   });
@@ -363,7 +410,7 @@ if (localStorage.getItem('darkMode') === 'true') {
 }
 
 buildData();
-setInterval(buildData, 600000); // Refresh every 10 minutes
+setInterval(buildData, 600000);
 </script>
 </body>
 </html>

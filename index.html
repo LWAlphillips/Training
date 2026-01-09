@@ -30,6 +30,8 @@
     .controls-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; }
     .control-input { width:240px!important; max-width:100%; }
     .refresh-btn { white-space:nowrap; }
+    .section-header { background:#e9ecef; font-weight:bold; padding:8px 12px; border-radius:8px; margin:20px 0 10px; }
+    body.dark .section-header { background:#2c2c2c; }
     @media(max-width:991px){
       .order-mobile-1 { order:1; }
       .order-mobile-2 { order:2; }
@@ -141,20 +143,19 @@ const ALL_TRAININGS = [
   "Wildfire Smoke Protection"
 ];
 
-// REQUIRED TRAININGS – always shown in employee view, email for missing OR overdue
+// REQUIRED TRAININGS
 const REQUIRED_TRAININGS = [
   "Fall Protection",
-  "HazCom", // HazCom
+  "Chemical Hazard Safety",
   "Heat Illness Prevention (Indoor)",
   "Heat Illness Prevention (Outdoor)",
   "Wildfire Smoke Protection",
   "Workplace Violence Prevention"
 ];
 
-// SUGGESTED TRAININGS – always shown in employee view, email ONLY if overdue
+// SUGGESTED TRAININGS
 const SUGGESTED_TRAININGS = [
   "Confined Space",
-  "Chemical Hazard Training",
   "Forklift Training",
   "Mobile Elevated Work Platform",
   "First Aid/CPR/AED",
@@ -390,26 +391,37 @@ function showEmployeeDetail(norm) {
   if (!emp) return;
   const name = emp.original;
   const over = Object.entries(emp.records).filter(([,r]) => r['Status'] === 'Overdue').length;
-  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">Required & suggested trainings + any completed | Overdues: ${over}</p><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expiration Date</th><th>Days Remaining</th><th>Status</th></tr></thead><tbody>`;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">Trainings grouped by category | Overdues: ${over}</p><div class="table-responsive">`;
 
-  const displayedTopics = new Set([...REQUIRED_TRAININGS, ...SUGGESTED_TRAININGS]);
+  // Helper to add a section
+  const addSection = (title, topics) => {
+    if (topics.length === 0) return;
+    html += `<div class="section-header">${title}</div><table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expiration Date</th><th>Days Remaining</th><th>Status</th></tr></thead><tbody>`;
+    topics.sort().forEach(topic => {
+      const r = emp.records[topic];
+      let link = LINKS[topic] || Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
+      const finalLink = link ? LINKS[link] : '';
+      const cell = finalLink ? `<a href="${finalLink}" target="_blank" class="training-link">${topic}</a>` : topic;
+      if (r) {
+        html += `<tr><td>${cell}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td>${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
+      } else {
+        html += `<tr class="table-secondary"><td>${cell}</td><td colspan="5"><span class="badge badge-norecord">No Record</span></td></tr>`;
+      }
+    });
+    html += `</tbody></table>`;
+  };
 
-  Object.keys(emp.records).forEach(t => displayedTopics.add(t));
+  // Required section
+  addSection("Required Trainings", REQUIRED_TRAININGS);
 
-  Array.from(displayedTopics).sort().forEach(topic => {
-    const r = emp.records[topic];
-    let link = LINKS[topic] || Object.keys(LINKS).find(k => topic.includes(k) || k.includes(topic));
-    const finalLink = link ? LINKS[link] : '';
-    const cell = finalLink ? `<a href="${finalLink}" target="_blank" class="training-link">${topic}</a>` : topic;
+  // Suggested section
+  addSection("Suggested Trainings", SUGGESTED_TRAININGS);
 
-    if (r) {
-      html += `<tr><td>${cell}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td>${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
-    } else {
-      html += `<tr class="table-secondary"><td>${cell}</td><td colspan="5"><span class="badge badge-norecord">No Record</span></td></tr>`;
-    }
-  });
+  // Additional trainings (any other with a record)
+  const additional = Object.keys(emp.records).filter(t => !REQUIRED_TRAININGS.includes(t) && !SUGGESTED_TRAININGS.includes(t));
+  addSection("Additional Trainings", additional);
 
-  html += `</tbody></table></div></div>`;
+  html += `</div></div>`;
   document.getElementById('detailPane').innerHTML = html;
 }
 

@@ -53,7 +53,7 @@
 <body class="p-3">
 <div class="container-fluid">
   <div id="overdueBanner" class="overdue-banner d-none">
-    <strong>Overdue Alert:</strong> <span id="overdueCount"></span> trainings overdue for <span id="overdueEmps"></span> employees.
+    <strong>Overdue Alert:</strong> <span id="overdueCount"></span> trainings overdue/due soon/missing for <span id="overdueEmps"></span> employees.
   </div>
   <div class="card mb-4">
     <div class="card-body text-center py-4">
@@ -63,7 +63,7 @@
       <div class="text-muted small mt-1" id="lastUpdated">Last loaded: —</div>
       <div class="controls-row mt-3">
         <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
-        <select id="employeeSelect" class="form-select form-select-sm control-input">
+        <select id="employeeSelect" class="form-select form-control-sm control-input">
           <option value="">— Jump to employee —</option>
         </select>
         <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="buildData()">Refresh</button>
@@ -98,39 +98,43 @@
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRV7v_0mQWcqJI9ExD7lphRQDaHnyv65Tp_i2uDiBJOcxAJ5l6jXV1-WFFBKSU9YZErgLDkGB6nYmug/pub?output=csv';
 
 const TRAINING_RULES = {
-  "Fire Prevention and Extinguishers": "All Required",
-  "Workplace Violence Prevention": "All Required",
-  "Fall Protection": "Field Required",
-  "Heat Illness Prevention (Indoor)": "Field Required",
-  "Heat Illness Prevention (Outdoor)": "Field Required",
-  "Personal Protective Equipment": "Field Required",
-  "Silica Awareness Training": "Field Required",
-  "Wildfire Protection": "Field Required",  // note: sheet has "Wildfire Smoke Protection" variant?
-  "First Aid/CPR/AED": "Foreman",
-  "Intro to First Aid": "Foreman",
-  "OSHA 30 Certificate": "Optional",
-  "Certified Rigger and Signaler": "Job Dependent",
-  "SpecialtyConfined Space": "Job Dependent",
-  "Confined Space": "Job Dependent",
-  "Forklift Training": "Job Dependent",
-  "Mobile Elevated Work Platform": "Job Dependent",
-  "NCCO Crane Operations": "Job Dependent",
-  "Part 46 New Miner": "Job Dependent",
-  "Part 46 Refresher": "Job Dependent",
-  "Respiratory Fit Testing": "Job Dependent",
-  "Respiratory Medical Questionnare": "Job Dependent",
-  "Silica Dust Exposure": "Job Dependent"
-  // Add more from your ALL_TRAININGS if they have specific rules
+  "Fire Prevention and Extinguishers":         "All Required",
+  "Workplace Violence Prevention":             "All Required",
+
+  "Fall Protection":                           "Field Required",
+  "Heat Illness Prevention (Indoor)":          "Field Required",
+  "Heat Illness Prevention (Outdoor)":         "Field Required",
+  "Personal Protective Equipment":             "Field Required",
+  "Silica Awareness Training":                 "Field Required",
+  "Wildfire Protection":                       "Field Required",
+
+  "First Aid/CPR/AED":                         "Foreman",
+  "Intro to First Aid":                        "Foreman",
+
+  "OSHA 30 Certificate":                       "Optional",
+
+  "Certified Rigger and Signaler":             "Job Dependent",
+  "SpecialtyConfined Space":                   "Job Dependent",
+  "Confined Space":                            "Job Dependent",
+  "Forklift Training":                         "Job Dependent",
+  "Mobile Elevated Work Platform":             "Job Dependent",
+  "NCCO Crane Operations":                     "Job Dependent",
+  "Part 46 New Miner":                         "Job Dependent",
+  "Part 46 Refresher":                         "Job Dependent",
+  "Respiratory Fit Testing":                   "Job Dependent",
+  "Respiratory Medical Questionnare":          "Job Dependent",
+  "Silica Dust Exposure":                      "Job Dependent"
 };
 
-function isRequiredForRole(topic, position) {
+function isRequiredForRole(topic, role) {
   const rule = TRAINING_RULES[topic];
   if (!rule) return false;
-  const posLower = position?.toLowerCase() || '';
+  const r = role?.toLowerCase() || '';
   if (rule === "All Required") return true;
-  if (rule === "Field Required") return ["field", "foreman"].includes(posLower);
-  if (rule === "Foreman") return posLower === "foreman";
-  return false;
+  if (rule === "Field Required") return r === "field" || r === "foreman";
+  if (rule === "Foreman") return r === "foreman";
+  if (rule === "Office") return r === "office";
+  return false; // Optional / Job Dependent / unknown
 }
 
 let records = [], topicMap = {}, employeeMap = {}, allOverdue = [];
@@ -168,8 +172,8 @@ function parseTextDate(dateStr) {
   const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
   const match = dateStr.match(/(\w{3})\s+(\d{1,2}),\s+(\d{4})/);
   if (match) {
-    const [_, month, day, year] = match;
-    return new Date(year, months[month], day).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    const [_, m, d, y] = match;
+    return new Date(y, months[m], d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
   const parts = dateStr.split('/');
   if (parts.length === 3) {
@@ -220,30 +224,29 @@ async function buildData() {
     let topic = r['Topic']?.trim();
     if (topic === "Fall Protection Awareness") topic = "Fall Protection";
     if (topic === "SpecialtyConfined Space") topic = "Confined Space";
-    if (topic === "Wildfire Smoke Protection") topic = "Wildfire Protection"; // alias if needed
 
     const origName = r['Employee Name']?.trim();
     const normName = normalizeName(origName);
-    const position = (r['Position'] || '').trim();
+    const role = (r['Role'] || '').trim();
     if (!normName || !topic) return;
 
-    if (!employeeMap[normName]) employeeMap[normName] = { original: origName, position, records: {} };
-    employeeMap[normName].records[topic] = r; // last wins
+    if (!employeeMap[normName]) employeeMap[normName] = { original: origName, role, records: {} };
+    employeeMap[normName].records[topic] = r;
 
     if (!topicMap[topic]) topicMap[topic] = [];
     topicMap[topic].push({ ...r, 'Employee Name': origName });
 
-    if (r['Status'] === 'Overdue' || r['Status'] === 'Due Soon') {
+    if (['Overdue', 'Due Soon'].includes(r['Status'])) {
       overdueCount++;
       overdueEmps.add(normName);
       allOverdue.push({ employee: origName, topic, ...r });
     }
   });
 
-  // Add missing required as "overdue-like" for banner count
+  // Flag missing required trainings
   Object.values(employeeMap).forEach(emp => {
     Object.keys(TRAINING_RULES).forEach(t => {
-      if (isRequiredForRole(t, emp.position) && !emp.records[t]) {
+      if (isRequiredForRole(t, emp.role) && !emp.records[t]) {
         overdueCount++;
         overdueEmps.add(normalizeName(emp.original));
         allOverdue.push({ employee: emp.original, topic: t, 'Days Remaining': 'N/A', Status: 'No Record' });
@@ -301,11 +304,10 @@ function showTopicDetail(topic) {
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
     recs.forEach(r => {
-      const name = r['Employee Name'];
       const days = r['Days Remaining'] || '-';
       html += `
         <div class="training-card border">
-          <h5>${name}</h5>
+          <h5>${r['Employee Name']}</h5>
           <div class="detail-grid">
             <div><span class="label">Training Date</span>${parseTextDate(r['Training Date'])}</div>
             <div><span class="label">Completion</span>${parseTextDate(r['Completion Date'])}</div>
@@ -331,22 +333,19 @@ function showEmployeeDetail(norm) {
   const emp = employeeMap[norm];
   if (!emp) return;
   const name = emp.original;
-  const position = emp.position || 'Unknown';
-  let over = 0;
-  Object.values(emp.records).forEach(r => { if (r['Status'] === 'Overdue' || r['Status'] === 'Due Soon') over++; });
+  const role = emp.role || 'Unknown';
 
   let html = `<div class="card-body">
     <div class="d-flex justify-content-between align-items-start mb-3">
       <div>
         <h4>${name}</h4>
-        <div class="text-muted">Position: ${position}</div>
+        <div class="text-muted">Role: ${role}</div>
       </div>
       <div>
         <button class="btn btn-success btn-sm me-2" onclick="exportPDF()">PDF</button>
         <button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button>
       </div>
     </div>
-    <p class="text-muted mb-3">Overdues/Due Soon: ${over}</p>
     <div class="table-responsive">`;
 
   const addSection = (title, topics, highlightMissing = false) => {
@@ -361,7 +360,7 @@ function showEmployeeDetail(norm) {
         const statusHtml = badge(r || { Status: 'No Record' });
         let border = '';
         if (highlightMissing && !r) border = 'border-warning';
-        else if (r?.Status === 'Overdue' || r?.Status === 'Due Soon') border = 'border-danger';
+        else if (['Overdue','Due Soon'].includes(r?.Status)) border = 'border-danger';
         html += `
           <div class="training-card border ${border}">
             <h5>${topic}</h5>
@@ -380,7 +379,7 @@ function showEmployeeDetail(norm) {
         const r = emp.records[topic];
         let rowCls = '';
         if (highlightMissing && !r) rowCls = 'table-warning';
-        else if (r?.Status === 'Overdue' || r?.Status === 'Due Soon') rowCls = 'table-danger';
+        else if (['Overdue','Due Soon'].includes(r?.Status)) rowCls = 'table-danger';
         if (r) {
           html += `<tr class="${rowCls}"><td>${topic}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td class="${daysLeftStyle(r['Days Remaining'])}">${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
         } else {
@@ -391,17 +390,17 @@ function showEmployeeDetail(norm) {
     }
   };
 
-  const requiredTopics = Object.keys(TRAINING_RULES).filter(t => isRequiredForRole(t, position));
-  addSection(`Required (${position})`, requiredTopics, true);
+  const requiredTopics = Object.keys(TRAINING_RULES).filter(t => isRequiredForRole(t, role));
+  addSection(`Required for ${role}`, requiredTopics, true);
 
   const jobDepTopics = Object.keys(TRAINING_RULES).filter(t => TRAINING_RULES[t] === "Job Dependent");
-  addSection("Job Dependent", jobDepTopics);
+  addSection("Job Dependent Trainings", jobDepTopics);
 
   const optionalTopics = Object.keys(TRAINING_RULES).filter(t => TRAINING_RULES[t] === "Optional");
-  addSection("Optional", optionalTopics);
+  addSection("Optional / Recommended", optionalTopics);
 
   const additional = Object.keys(emp.records).filter(t => !Object.keys(TRAINING_RULES).includes(t));
-  addSection("Additional", additional);
+  addSection("Additional Trainings", additional);
 
   html += `</div></div>`;
   document.getElementById('detailPane').innerHTML = html;
@@ -409,17 +408,17 @@ function showEmployeeDetail(norm) {
 
 function showAllOverdue() {
   if (allOverdue.length === 0) {
-    document.getElementById('detailPane').innerHTML = `<div class="card-body text-center py-5"><p class="fs-4 text-success">No overdue or due-soon trainings! 🎉</p></div>`;
+    document.getElementById('detailPane').innerHTML = `<div class="card-body text-center py-5"><p class="fs-4 text-success">No issues found! 🎉</p></div>`;
     return;
   }
   let html = `<div class="card-body">
-    <h3 class="text-center mb-4 fw-bold text-danger">All Overdue / Due Soon (${allOverdue.length})</h3>
+    <h3 class="text-center mb-4 fw-bold text-danger">All Issues (${allOverdue.length})</h3>
     <div class="table-responsive">`;
 
   const isMobile = window.innerWidth < 768;
   if (isMobile) {
     allOverdue.sort((a,b) => a.employee.localeCompare(b.employee) || a.topic.localeCompare(b.topic)).forEach(item => {
-      const days = item['Days Remaining'] === 'N/A' ? 'Missing' : item['Days Remaining'];
+      const days = item['Days Remaining'] || 'N/A';
       html += `
         <div class="training-card border border-danger">
           <h5>${item.employee} — ${item.topic}</h5>
@@ -434,7 +433,7 @@ function showAllOverdue() {
   } else {
     html += `<table class="table table-hover"><thead><tr><th>Employee</th><th>Topic</th><th>Training Date</th><th>Expires</th><th>Days</th><th>Status</th></tr></thead><tbody>`;
     allOverdue.sort((a,b) => a.employee.localeCompare(b.employee) || a.topic.localeCompare(b.topic)).forEach(item => {
-      const days = item['Days Remaining'] === 'N/A' ? 'Missing' : item['Days Remaining'];
+      const days = item['Days Remaining'] || 'N/A';
       html += `<tr><td>${item.employee}</td><td>${item.topic}</td><td>${parseTextDate(item['Training Date'])}</td><td>${parseTextDate(item['Expiration Date'])}</td><td class="text-danger fw-bold">${days}</td><td>${badge(item)}</td></tr>`;
     });
     html += `</tbody></table>`;
@@ -447,11 +446,10 @@ async function exportPDF() {
   await new Promise(r => setTimeout(r, 500));
   try {
     const pane = document.querySelector('#detailPane .card-body');
-    if (!pane) return alert('Select something first');
+    if (!pane) return alert('Select content first');
     const clone = pane.cloneNode(true);
     clone.style.padding = '20px';
     clone.style.background = '#fff';
-    clone.style.border = '1px solid #ddd';
     document.body.appendChild(clone);
     clone.style.position = 'absolute';
     clone.style.left = '-9999px';
@@ -468,7 +466,7 @@ async function exportPDF() {
     pdf.save(`${name.replace(/[^a-z0-9]/gi, '_')}.pdf`);
   } catch (e) {
     console.error(e);
-    alert('PDF failed');
+    alert('PDF export failed');
   }
 }
 
@@ -477,25 +475,25 @@ function openOutlookEmail(norm) {
   if (!emp) return;
   const fullName = emp.original;
   const firstName = fullName.split(' ')[0];
-  const position = emp.position || 'Unknown';
+  const role = emp.role || 'Unknown';
   const actionItems = [];
 
   Object.keys(TRAINING_RULES).forEach(topic => {
     const r = emp.records[topic];
-    if (isRequiredForRole(topic, position)) {
-      if (!r || r['Status'] === 'Overdue' || r['Status'] === 'Due Soon') {
-        const status = r ? r['Status'] : 'No Record';
+    if (isRequiredForRole(topic, role)) {
+      if (!r || ['Overdue','Due Soon'].includes(r.Status)) {
+        const status = r ? r.Status : 'No Record';
         const days = r?.['Days Remaining'] || 'N/A';
-        actionItems.push(`• ${topic} (Required)\nStatus: ${status}${days !== 'N/A' ? ` (${days}d)` : ''}`);
+        actionItems.push(`• ${topic} (Required)\n   Status: ${status}${days !== 'N/A' ? ` (${days}d)` : ''}`);
       }
-    } else if (r && (r['Status'] === 'Overdue' || r['Status'] === 'Due Soon')) {
-      actionItems.push(`• ${topic}\nStatus: ${r['Status']} (${r['Days Remaining'] || 'N/A'}d)`);
+    } else if (r && ['Overdue','Due Soon'].includes(r.Status)) {
+      actionItems.push(`• ${topic}\n   Status: ${r.Status} (${r['Days Remaining'] || 'N/A'}d)`);
     }
   });
 
   const count = actionItems.length;
-  const body = `Hi ${firstName},\n\nYou have ${count} training item${count !== 1 ? 's' : ''} needing attention:\n\n${actionItems.join('\n\n') || 'None'}\n\nPlease address as soon as possible.\n\nGenerated from LWA Training Tracker\n${new Date().toLocaleString()}`;
-  location.href = `mailto:your-team@company.com?subject=Training Action: ${encodeURIComponent(fullName)}&body=${encodeURIComponent(body)}`;
+  const body = `Hi ${firstName},\n\nYou have ${count} training item${count !== 1 ? 's' : ''} needing attention:\n\n${actionItems.join('\n\n') || 'None'}\n\nPlease complete as soon as possible.\n\nGenerated from LWA Training Tracker • ${new Date().toLocaleString()}`;
+  location.href = `mailto:your-team@company.com?subject=Training Action Needed: ${encodeURIComponent(fullName)}&body=${encodeURIComponent(body)}`;
 }
 
 document.getElementById('darkModeToggle').addEventListener('change', e => {
@@ -508,7 +506,7 @@ if (localStorage.getItem('darkMode') === 'true') {
 }
 
 buildData();
-setInterval(buildData, 900000); // 15 min
+setInterval(buildData, 900000); // 15 minutes
 </script>
 </body>
 </html>

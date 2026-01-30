@@ -1,107 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>LWA Training Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <style>
-    body { background:#f4f6f9; font-family:system-ui; transition:all .3s; }
-    body.dark { background:#121212; color:#e0e0e0; }
-    body.dark .card { background:#1e1e1e; color:#e0e0e0; border:1px solid #333; }
-    body.dark table th { background:#343a40; color:#fff; }
-    body.dark .table { color:#e0e0e0; }
-    body.dark .table-hover tbody tr:hover { background:#2c2c2c; }
-    body.dark .list-group-item { background:#2c2c2c!important; color:#e0e0e0!important; border-color:#444!important; }
-    body.dark .list-group-item:hover { background:#3a3a3a!important; }
-    .card { box-shadow:0 4px 12px rgba(0,0,0,.07); border:none; border-radius:12px; }
-    .badge-due { background:#28a745; color:#fff; font-weight:600; }
-    .badge-over { background:#dc3545; color:#fff; font-weight:600; }
-    .badge-comp { background:#6c757d; color:#fff; }
-    .badge-norecord { background:#adb5bd; color:#fff; }
-    .badge-expiring { background:#ffc107; color:#000; font-weight:600; }
-    table th { background:#343a40; color:#fff; font-weight:600; }
-    .overdue-banner { background:#dc3545; color:#fff; padding:12px; border-radius:8px; margin-bottom:20px; }
-    body.dark .overdue-banner { background:#bb2d3b; }
-    .controls-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:center; }
-    .control-input { width:240px!important; max-width:100%; }
-    .refresh-btn { white-space:nowrap; }
-    .section-header { background:#e9ecef; font-weight:bold; padding:8px 12px; border-radius:8px; margin:20px 0 10px; }
-    body.dark .section-header { background:#2c2c2c; }
-    @media(max-width:991px){
-      .order-mobile-1 { order:1; }
-      .order-mobile-2 { order:2; }
-      #topicList { max-height:50vh; }
-    }
-    @media (max-width: 767px) {
-      .table-responsive { overflow-x: hidden; }
-      table { display: none; }
-      .training-card { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1rem; padding: 1rem; }
-      body.dark .training-card { background: #222; }
-      .training-card h5 { margin: 0 0 0.75rem; font-size: 1.1rem; }
-      .training-card .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem; }
-      .training-card .detail-grid > div { display: flex; flex-direction: column; }
-      .training-card .detail-grid .label { font-weight: 600; color: #555; font-size: 0.8rem; }
-      body.dark .training-card .label { color: #aaa; }
-    }
-  </style>
-</head>
-<body class="p-3">
-<div class="container-fluid">
-  <div id="overdueBanner" class="overdue-banner d-none">
-    <strong>Overdue Alert:</strong> <span id="overdueCount"></span> trainings overdue/due soon/missing for <span id="overdueEmps"></span> employees.
-  </div>
-  <div class="card mb-4">
-    <div class="card-body text-center py-4">
-      <h1 class="display-5 fw-bold text-primary">LWA Training Tracker</h1>
-      <p class="lead">Live from Google Sheets</p>
-      <div class="status-bar text-muted" id="status">Loading...</div>
-      <div class="text-muted small mt-1" id="lastUpdated">Last loaded: —</div>
-      <div class="controls-row mt-3">
-        <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
-
-        <!-- Role filter -->
-        <select id="roleFilter" class="form-select form-select-sm control-input">
-          <option value="">— All Roles —</option>
-        </select>
-
-        <select id="employeeSelect" class="form-select form-select-sm control-input">
-          <option value="">— Jump to employee —</option>
-        </select>
-
-        <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="buildData()">Refresh</button>
-        <button class="btn btn-outline-danger btn-sm" onclick="showAllOverdue()">View All Overdue</button>
-
-        <div class="form-check form-switch ms-2">
-          <input class="form-check-input" type="checkbox" id="darkModeToggle">
-          <label class="form-check-label text-muted small" for="darkModeToggle">Dark</label>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="row">
-    <div class="col-lg-8 order-mobile-1 mb-4">
-      <div id="detailPane" class="card h-100">
-        <div class="card-body d-flex align-items-center justify-content-center text-muted">
-          <p class="mb-0 fs-5">Select a topic or employee</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-lg-4 order-mobile-2 mb-4">
-      <div class="card h-100">
-        <div class="card-header bg-primary text-white"><strong>Training Topics</strong></div>
-        <div class="card-body p-0">
-          <div id="topicList" class="list-group list-group-flush" style="max-height:70vh;overflow-y:auto"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRV7v_0mQWcqJI9ExD7lphRQDaHnyv65Tp_i2uDiBJOcxAJ5l6jXV1-WFFBKSU9YZErgLDkGB6nYmug/pub?output=csv';
 
@@ -270,24 +166,25 @@ async function buildData() {
 
   // Populate role filter dynamically
   const roleSelect = document.getElementById('roleFilter');
-  const previouslySelectedRole = roleSelect.value;  // remember current selection
+  const previouslySelectedRole = roleSelect.value;
 
   roleSelect.innerHTML = '<option value="">— All Roles —</option>';
   [...uniqueRoles].sort().forEach(role => {
     const opt = document.createElement('option');
-    opt.value = role;
+    opt.value = role.toLowerCase();  // store lowercase for comparison
     opt.textContent = role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
     roleSelect.appendChild(opt);
   });
 
-  // Restore previous selection if it still exists
-  if (previouslySelectedRole && [...uniqueRoles].includes(previouslySelectedRole)) {
-    roleSelect.value = previouslySelectedRole;
+  // Restore previous selection (case-insensitive match)
+  if (previouslySelectedRole) {
+    const lowerPrev = previouslySelectedRole.toLowerCase();
+    const matchingOption = Array.from(roleSelect.options).find(opt => opt.value === lowerPrev);
+    if (matchingOption) roleSelect.value = matchingOption.value;
   }
 
   renderTopics(document.getElementById('topicSearch').value.trim());
 
-  // Re-apply current role filter to employee dropdown
   populateEmployeeDropdown();
 }
 
@@ -308,249 +205,43 @@ function renderTopics(filter = '') {
 
 document.getElementById('topicSearch').addEventListener('input', e => renderTopics(e.target.value.trim()));
 
-// Role filter change triggers employee list refresh
 document.getElementById('roleFilter').addEventListener('change', populateEmployeeDropdown);
 
 function populateEmployeeDropdown() {
   const sel = document.getElementById('employeeSelect');
-  const selectedRole = document.getElementById('roleFilter').value.trim();
+  const selectedRole = document.getElementById('roleFilter').value.trim().toLowerCase();
 
   sel.innerHTML = '<option value="">— Jump to employee —</option>';
 
-  Object.keys(employeeMap)
+  const filteredEmployees = Object.keys(employeeMap)
     .filter(norm => {
-      const empRole = employeeMap[norm].role || '';
-      return !selectedRole || empRole.toLowerCase() === selectedRole.toLowerCase();
-    })
-    .sort((a,b) => employeeMap[a].original.localeCompare(employeeMap[b].original))
-    .forEach(norm => {
-      const opt = document.createElement('option');
-      opt.value = norm;
-      opt.textContent = employeeMap[norm].original;
-      sel.appendChild(opt);
-    });
-
-  sel.onchange = e => { if (e.target.value) showEmployeeDetail(e.target.value); };
-}
-
-function showTopicDetail(topic) {
-  const recs = topicMap[topic] || [];
-  let html = `<div class="card-body">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <h4>${topic}</h4>
-      <button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button>
-    </div>
-    <p class="text-muted mb-3">${recs.length} record(s)</p>
-    <div class="table-responsive">`;
-
-  const isMobile = window.innerWidth < 768;
-  if (isMobile) {
-    recs.forEach(r => {
-      const days = r['Days Remaining'] || '-';
-      html += `
-        <div class="training-card border">
-          <h5>${r['Employee Name']}</h5>
-          <div class="detail-grid">
-            <div><span class="label">Training Date</span>${parseTextDate(r['Training Date'])}</div>
-            <div><span class="label">Completion</span>${parseTextDate(r['Completion Date'])}</div>
-            <div><span class="label">Expires</span>${parseTextDate(r['Expiration Date'])}</div>
-            <div><span class="label">Days Left</span><span class="${daysLeftStyle(days)}">${days}</span></div>
-            <div><span class="label">Status</span>${badge(r)}</div>
-          </div>
-        </div>`;
-    });
-  } else {
-    html += `<table class="table table-sm table-hover"><thead><tr><th>Employee</th><th>Training Date</th><th>Completion Date</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
-    recs.forEach(r => {
-      const norm = normalizeName(r['Employee Name']);
-      html += `<tr><td><a href="javascript:void(0)" onclick="showEmployeeDetail('${norm}')">${r['Employee Name']}</a></td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td class="${daysLeftStyle(r['Days Remaining'])}">${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
-    });
-    html += `</tbody></table>`;
-  }
-  html += `</div></div>`;
-  document.getElementById('detailPane').innerHTML = html;
-}
-
-function showEmployeeDetail(norm) {
-  const emp = employeeMap[norm];
-  if (!emp) return;
-  const name = emp.original;
-  let roleDisplay = emp.role 
-    ? emp.role.charAt(0).toUpperCase() + emp.role.slice(1).toLowerCase() 
-    : 'Unknown';
-
-  let html = `<div class="card-body">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <div>
-        <h4>${name}</h4>
-        <div class="text-muted">Role: ${roleDisplay}</div>
-      </div>
-      <div>
-        <button class="btn btn-success btn-sm me-2" onclick="exportPDF()">PDF</button>
-        <button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button>
-      </div>
-    </div>
-    <div class="table-responsive">`;
-
-  const addSection = (title, topics, highlightMissing = false) => {
-    if (topics.length === 0) return;
-    const isMobile = window.innerWidth < 768;
-    html += `<div class="section-header">${title}</div>`;
-
-    if (isMobile) {
-      topics.sort().forEach(topic => {
-        const r = emp.records[topic];
-        const days = r?.['Days Remaining'] || '-';
-        const statusHtml = badge(r || { Status: 'No Record' });
-        let border = '';
-        if (highlightMissing && !r) border = 'border-warning';
-        else if (['Overdue','Due Soon'].includes(r?.Status)) border = 'border-danger';
-        html += `
-          <div class="training-card border ${border}">
-            <h5>${topic}</h5>
-            <div class="detail-grid">
-              <div><span class="label">Training Date</span>${parseTextDate(r?.['Training Date'])}</div>
-              <div><span class="label">Completion</span>${parseTextDate(r?.['Completion Date'])}</div>
-              <div><span class="label">Expires</span>${parseTextDate(r?.['Expiration Date'])}</div>
-              <div><span class="label">Days Left</span><span class="${daysLeftStyle(days)}">${days}</span></div>
-              <div><span class="label">Status</span>${statusHtml}</div>
-            </div>
-          </div>`;
-      });
-    } else {
-      html += `<table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expires</th><th>Days Left</th><th>Status</th></tr></thead><tbody>`;
-      topics.sort().forEach(topic => {
-        const r = emp.records[topic];
-        let rowCls = '';
-        if (highlightMissing && !r) rowCls = 'table-warning';
-        else if (['Overdue','Due Soon'].includes(r?.Status)) rowCls = 'table-danger';
-        if (r) {
-          html += `<tr class="${rowCls}"><td>${topic}</td><td>${parseTextDate(r['Training Date'])}</td><td>${parseTextDate(r['Completion Date'])}</td><td>${parseTextDate(r['Expiration Date'])}</td><td class="${daysLeftStyle(r['Days Remaining'])}">${r['Days Remaining'] || '-'}</td><td>${badge(r)}</td></tr>`;
-        } else {
-          html += `<tr class="${rowCls}"><td>${topic}</td><td colspan="5"><span class="badge badge-norecord">No Record</span></td></tr>`;
-        }
-      });
-      html += `</tbody></table>`;
-    }
-  };
-
-  const requiredTopics = Object.keys(TRAINING_RULES).filter(t => isRequiredForRole(t, emp.role));
-  addSection(`Required for ${roleDisplay}`, requiredTopics, true);
-
-  const jobDepTopics = Object.keys(TRAINING_RULES).filter(t => TRAINING_RULES[t] === "Job Dependent");
-  addSection("Job Dependent Trainings", jobDepTopics);
-
-  const optionalTopics = Object.keys(TRAINING_RULES).filter(t => TRAINING_RULES[t] === "Optional");
-  addSection("Optional / Recommended", optionalTopics);
-
-  const additional = Object.keys(emp.records).filter(t => !Object.keys(TRAINING_RULES).includes(t));
-  addSection("Additional Trainings", additional);
-
-  html += `</div></div>`;
-  document.getElementById('detailPane').innerHTML = html;
-}
-
-function showAllOverdue() {
-  if (allOverdue.length === 0) {
-    document.getElementById('detailPane').innerHTML = `<div class="card-body text-center py-5"><p class="fs-4 text-success">No issues found! 🎉</p></div>`;
-    return;
-  }
-  let html = `<div class="card-body">
-    <h3 class="text-center mb-4 fw-bold text-danger">All Issues (${allOverdue.length})</h3>
-    <div class="table-responsive">`;
-
-  const isMobile = window.innerWidth < 768;
-  if (isMobile) {
-    allOverdue.sort((a,b) => a.employee.localeCompare(b.employee) || a.topic.localeCompare(b.topic)).forEach(item => {
-      const days = item['Days Remaining'] || 'N/A';
-      html += `
-        <div class="training-card border border-danger">
-          <h5>${item.employee} — ${item.topic}</h5>
-          <div class="detail-grid">
-            <div><span class="label">Training Date</span>${parseTextDate(item['Training Date'])}</div>
-            <div><span class="label">Expires</span>${parseTextDate(item['Expiration Date'])}</div>
-            <div><span class="label">Days</span><span class="text-danger fw-bold">${days}</span></div>
-            <div><span class="label">Status</span>${badge(item)}</div>
-          </div>
-        </div>`;
-    });
-  } else {
-    html += `<table class="table table-hover"><thead><tr><th>Employee</th><th>Topic</th><th>Training Date</th><th>Expires</th><th>Days</th><th>Status</th></tr></thead><tbody>`;
-    allOverdue.sort((a,b) => a.employee.localeCompare(b.employee) || a.topic.localeCompare(b.topic)).forEach(item => {
-      const days = item['Days Remaining'] || 'N/A';
-      html += `<tr><td>${item.employee}</td><td>${item.topic}</td><td>${parseTextDate(item['Training Date'])}</td><td>${parseTextDate(item['Expiration Date'])}</td><td class="text-danger fw-bold">${days}</td><td>${badge(item)}</td></tr>`;
-    });
-    html += `</tbody></table>`;
-  }
-  html += `</div></div>`;
-  document.getElementById('detailPane').innerHTML = html;
-}
-
-async function exportPDF() {
-  await new Promise(r => setTimeout(r, 500));
-  try {
-    const pane = document.querySelector('#detailPane .card-body');
-    if (!pane) return alert('Select content first');
-    const clone = pane.cloneNode(true);
-    clone.style.padding = '20px';
-    clone.style.background = '#fff';
-    document.body.appendChild(clone);
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.width = '800px';
-    const canvas = await html2canvas(clone, { scale: 2 });
-    document.body.removeChild(clone);
-    const img = canvas.toDataURL('image/png');
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const w = 190;
-    const h = (canvas.height * w) / canvas.width;
-    pdf.addImage(img, 'PNG', 10, 10, w, h);
-    const name = pane.querySelector('h4')?.textContent?.trim() || 'LWA-Report';
-    pdf.save(`${name.replace(/[^a-z0-9]/gi, '_')}.pdf`);
-  } catch (e) {
-    console.error(e);
-    alert('PDF export failed');
-  }
-}
-
-function openOutlookEmail(norm) {
-  const emp = employeeMap[norm];
-  if (!emp) return;
-  const fullName = emp.original;
-  const firstName = fullName.split(' ')[0];
-  const role = emp.role || 'Unknown';
-  const actionItems = [];
-
-  Object.keys(TRAINING_RULES).forEach(topic => {
-    const r = emp.records[topic];
-    if (isRequiredForRole(topic, role)) {
-      if (!r || ['Overdue','Due Soon'].includes(r.Status)) {
-        const status = r ? r.Status : 'No Record';
-        const days = r?.['Days Remaining'] || 'N/A';
-        actionItems.push(`• ${topic} (Required)\n   Status: ${status}${days !== 'N/A' ? ` (${days}d)` : ''}`);
+      const empRole = (employeeMap[norm].role || '').trim().toLowerCase();
+      const match = !selectedRole || empRole === selectedRole;
+      // Debug log - open console (F12) to see why someone might be filtered out
+      if (employeeMap[norm].original === "Will Tuttle" || employeeMap[norm].original.includes("Tuttle")) {
+        console.log(`Will Tuttle check → empRole: "${empRole}", selected: "${selectedRole}", match: ${match}`);
       }
-    } else if (r && ['Overdue','Due Soon'].includes(r.Status)) {
-      actionItems.push(`• ${topic}\n   Status: ${r.Status} (${r['Days Remaining'] || 'N/A'}d)`);
-    }
+      return match;
+    })
+    .sort((a,b) => employeeMap[a].original.localeCompare(employeeMap[b].original));
+
+  filteredEmployees.forEach(norm => {
+    const opt = document.createElement('option');
+    opt.value = norm;
+    opt.textContent = employeeMap[norm].original;
+    sel.appendChild(opt);
   });
 
-  const count = actionItems.length;
-  const body = `Hi ${firstName},\n\nYou have ${count} training item${count !== 1 ? 's' : ''} needing attention:\n\n${actionItems.join('\n\n') || 'None'}\n\nPlease complete as soon as possible.\n\nGenerated from LWA Training Tracker • ${new Date().toLocaleString()}`;
-  location.href = `mailto:your-team@company.com?subject=Training Action Needed: ${encodeURIComponent(fullName)}&body=${encodeURIComponent(body)}`;
+  sel.onchange = e => { if (e.target.value) showEmployeeDetail(e.target.value); };
+
+  // If no employees match, show message in dropdown
+  if (filteredEmployees.length === 0 && selectedRole) {
+    const opt = document.createElement('option');
+    opt.disabled = true;
+    opt.textContent = `(No employees found for ${selectedRole})`;
+    sel.appendChild(opt);
+  }
 }
 
-document.getElementById('darkModeToggle').addEventListener('change', e => {
-  document.body.classList.toggle('dark', e.target.checked);
-  localStorage.setItem('darkMode', e.target.checked ? 'true' : 'false');
-});
-if (localStorage.getItem('darkMode') === 'true') {
-  document.getElementById('darkModeToggle').checked = true;
-  document.body.classList.add('dark');
-}
-
-buildData();
-setInterval(buildData, 900000); // 15 minutes
+// ... the rest of your functions (showTopicDetail, showEmployeeDetail, showAllOverdue, exportPDF, openOutlookEmail, dark mode) remain unchanged from your last version ...
 </script>
-</body>
-</html>

@@ -221,7 +221,9 @@ async function buildData() {
   records = await loadData();
   if (!records.length) return;
 
-  topicMap = {}; employeeMap = {}; allOverdue = [];
+  topicMap = {}; 
+  employeeMap = {}; 
+  allOverdue = [];
   let overdueCount = 0, overdueEmps = new Set();
   const uniqueRoles = new Set();
 
@@ -268,6 +270,8 @@ async function buildData() {
 
   // Populate role filter dynamically
   const roleSelect = document.getElementById('roleFilter');
+  const previouslySelectedRole = roleSelect.value;  // remember current selection
+
   roleSelect.innerHTML = '<option value="">— All Roles —</option>';
   [...uniqueRoles].sort().forEach(role => {
     const opt = document.createElement('option');
@@ -276,7 +280,14 @@ async function buildData() {
     roleSelect.appendChild(opt);
   });
 
+  // Restore previous selection if it still exists
+  if (previouslySelectedRole && [...uniqueRoles].includes(previouslySelectedRole)) {
+    roleSelect.value = previouslySelectedRole;
+  }
+
   renderTopics(document.getElementById('topicSearch').value.trim());
+
+  // Re-apply current role filter to employee dropdown
   populateEmployeeDropdown();
 }
 

@@ -54,6 +54,7 @@
       <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
       <select id="employeeSelect" class="form-select form-select-sm control-input"><option value="">— Jump to employee —</option></select>
       <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="buildData()">Refresh</button>
+      <button class="btn btn-outline-danger btn-sm" onclick="showAllOverdue()">View All Overdue</button>
       <div class="form-check form-switch ms-2">
         <input class="form-check-input" type="checkbox" id="darkModeToggle">
         <label class="form-check-label text-muted small" for="darkModeToggle">Dark</label>
@@ -80,7 +81,7 @@
 </div>
 
 <script>
-// YOUR CORRECT CSV URL
+// CORRECT CSV URL (confirmed working)
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRV7v_0mQWcqJI9ExD7lphRQDaHnyv65Tp_i2uDiBJOcxAJ5l6jXV1-WFFBKSU9YZErgLDkGB6nYmug/pub?output=csv';
 
 const RECIPIENT_EMAIL = 'your-team@company.com'; // ← CHANGE TO REAL EMAIL
@@ -143,7 +144,7 @@ const ALL_TRAININGS = [
   "Wildfire Smoke Protection"
 ];
 
-// REQUIRED TRAININGS – using canonical names
+// REQUIRED TRAININGS (canonical names)
 const REQUIRED_TRAININGS = [
   "Fall Protection",
   "Hazard Communication (HazCom/GHS)",
@@ -321,6 +322,7 @@ async function buildData() {
     // Normalize variations
     if (topic === "Fall Protection Awareness") topic = "Fall Protection";
     if (topic === "Wildfire Protection") topic = "Wildfire Smoke Prevention";
+    if (topic === "Heat Illness Prevention" && !topic.includes("(Indoor)") && !topic.includes("(Outdoor)")) topic = "Indoor Heat Illness Prevention";
 
     const orig = r['Employee Name'];
     const status = r['Status'] || '';

@@ -54,7 +54,6 @@
       <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
       <select id="employeeSelect" class="form-select form-select-sm control-input"><option value="">— Jump to employee —</option></select>
       <button class="btn btn-outline-primary btn-sm refresh-btn" onclick="buildData()">Refresh</button>
-      <button class="btn btn-outline-danger btn-sm" onclick="showAllOverdue()">View All Overdue</button>
       <div class="form-check form-switch ms-2">
         <input class="form-check-input" type="checkbox" id="darkModeToggle">
         <label class="form-check-label text-muted small" for="darkModeToggle">Dark</label>
@@ -81,7 +80,7 @@
 </div>
 
 <script>
-// CORRECT CSV URL
+// YOUR CORRECT CSV URL
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRV7v_0mQWcqJI9ExD7lphRQDaHnyv65Tp_i2uDiBJOcxAJ5l6jXV1-WFFBKSU9YZErgLDkGB6nYmug/pub?output=csv';
 
 const RECIPIENT_EMAIL = 'your-team@company.com'; // ← CHANGE TO REAL EMAIL
@@ -144,7 +143,7 @@ const ALL_TRAININGS = [
   "Wildfire Smoke Protection"
 ];
 
-// REQUIRED TRAININGS
+// REQUIRED TRAININGS – using canonical names
 const REQUIRED_TRAININGS = [
   "Fall Protection",
   "Hazard Communication (HazCom/GHS)",
@@ -330,7 +329,16 @@ async function buildData() {
     if (!norm || !topic) return;
     allTopics.add(topic);
     if (!employeeMap[norm]) employeeMap[norm] = { original: orig, records: {} };
-    employeeMap[norm].records[topic] = r;
+
+    const existing = employeeMap[norm].records[topic];
+    const newDays = parseInt(r['Days Remaining'] || '0', 10);
+    const existingDays = existing ? parseInt(existing['Days Remaining'] || '0', 10) : 0;
+
+    // Prefer higher Days Remaining (newer training)
+    if (!existing || newDays > existingDays) {
+      employeeMap[norm].records[topic] = r;
+    }
+
     if (!topicMap[topic]) topicMap[topic] = [];
     topicMap[topic].push({ ...r, 'Employee Name': orig });
 

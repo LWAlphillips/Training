@@ -49,7 +49,6 @@
   </div>
   <div class="card mb-4"><div class="card-body text-center py-4">
     <h1 class="display-5 fw-bold text-primary">LWA Training Tracker</h1>
-    <p class="lead">Live from Google Sheets — Click to explore</p>
     <div class="status-bar text-muted" id="status">Loading...</div>
     <div class="controls-row mt-3">
       <input type="text" id="topicSearch" class="form-control form-control-sm control-input" placeholder="Search topics…">
@@ -86,7 +85,7 @@
 // CONFIG
 // ──────────────────────────────────────────────────────────────────────────────
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRV7v_0mQWcqJI9ExD7lphRQDaHnyv65Tp_i2uDiBJOcxAJ5l6jXV1-WFFBKSU9YZErgLDkGB6nYmug/pub?output=csv';
-const RECIPIENT_EMAIL = 'your-team@company.com'; // ← CHANGE THIS TO REAL EMAIL
+const RECIPIENT_EMAIL = 'your-team@company.com'; // ← CHANGE TO REAL EMAIL
 
 const LINKS = {
   "Fall Protection": "https://www.surveymonkey.com/r/LWAFallProtectionQuiz",
@@ -126,6 +125,39 @@ const SUGGESTED_TRAININGS = [
   "First Aid/CPR/AED", "Harassment & Discrimination Training",
   "Workplace Violence Property Assessment"
 ];
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ADVANCED: Position-specific required trainings
+// Customize this object based on your "Training Topics" sheet rules
+// If a position is not listed, falls back to global REQUIRED_TRAININGS
+// ──────────────────────────────────────────────────────────────────────────────
+const POSITION_REQUIREMENTS = {
+  "Worker": [
+    "Fall Protection",
+    "Hazard Communication (HazCom/GHS)",
+    "Forklift Training",
+    "Outdoor Heat Illness Prevention",
+    "Workplace Violence Prevention"
+  ],
+  "Foreman": [
+    "Fall Protection",
+    "Hazard Communication (HazCom/GHS)",
+    "Confined Space",
+    "Mobile Elevated Work Platform",
+    "Indoor Heat Illness Prevention",
+    "Outdoor Heat Illness Prevention",
+    "Workplace Violence Prevention",
+    "First Aid/CPR/AED"
+  ],
+  "Office": [
+    "Hazard Communication (HazCom/GHS)",
+    "Workplace Violence Prevention",
+    "Harassment & Discrimination Training"
+  ],
+  // Add more positions as needed, e.g.:
+  // "Manager": [...],
+  // "default": REQUIRED_TRAININGS  // uncomment if you want explicit default
+};
 
 // ──────────────────────────────────────────────────────────────────────────────
 // STATE
@@ -173,13 +205,12 @@ async function loadData() {
 function parseTextDate(dateStr) {
   if (!dateStr || dateStr.trim() === '') return 'N/A';
 
-  // Handle MM/DD/YYYY (primary format in your CSV)
   const slashParts = dateStr.split('/');
   if (slashParts.length === 3) {
     const [m, d, y] = slashParts.map(p => parseInt(p.trim(), 10));
     if (!isNaN(m) && !isNaN(d) && !isNaN(y)) {
       let adjustedYear = y;
-      if (y > 2100) adjustedYear = y - 100; // fix typos like 2126 → 2026
+      if (y > 2100) adjustedYear = y - 100;
       const date = new Date(adjustedYear, m - 1, d);
       if (!isNaN(date.getTime())) {
         return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -187,7 +218,6 @@ function parseTextDate(dateStr) {
     }
   }
 
-  // Fallback: written month
   const match = dateStr.match(/([A-Za-z]+)\s+(\d{1,2})[,\s]+(\d{4})/i);
   if (match) {
     const [_, monthStr, day, year] = match;
@@ -268,15 +298,20 @@ async function exportPDF() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// EMAIL GENERATOR
+// EMAIL GENERATOR (with optional Position inclusion)
 // ──────────────────────────────────────────────────────────────────────────────
 function openOutlookEmail(normName) {
   const emp = employeeMap[normName];
   if (!emp) return;
   const fullName = emp.original;
   const firstName = fullName.split(' ')[0];
+  const position = emp.records[Object.keys(emp.records)[0]]?.['Position'] || 'N/A';
+
+  // Get position-specific required trainings (or fallback)
+  const requiredList = POSITION_REQUIREMENTS[position] || REQUIRED_TRAININGS;
+
   const actionItems = [];
-  REQUIRED_TRAININGS.forEach(topic => {
+  requiredList.forEach(topic => {
     const r = emp.records[topic];
     const link = LINKS[topic] || 'Schedule Training';
     if (r && r['Status'] === 'Overdue') {
@@ -297,7 +332,10 @@ function openOutlookEmail(normName) {
     }
   });
   const count = actionItems.length;
-  const body = `Hi ${firstName},
+  let body = `Hi ${firstName}`;
+  // Optional: include position in greeting
+  // body += ` (${position})`;
+  body += `,
 You have ${count} training${count !== 1 ? 's' : ''} needing attention:
 ${actionItems.join('\n\n') || '• None'}
 Please complete as soon as possible.
@@ -319,9 +357,8 @@ async function buildData() {
   allOverdue = [];
   let overdueCount = 0, overdueEmps = new Set();
 
-  // Process existing records — only Active employees
   records.forEach(r => {
-    if (r['Active/Inactive EE'] !== 'Active') return;  // ← FILTER HERE
+    if (r['Active/Inactive EE'] !== 'Active') return;
 
     let topic = r['Topic'];
     if (topic === "Fall Protection Awareness") topic = "Fall Protection";
@@ -351,7 +388,6 @@ async function buildData() {
     }
   });
 
-  // Add missing REQUIRED trainings as overdue — only for Active employees
   Object.values(employeeMap).forEach(emp => {
     REQUIRED_TRAININGS.forEach(topic => {
       if (!emp.records[topic]) {
@@ -430,9 +466,11 @@ function populateEmployeeDropdown() {
   const sel = document.getElementById('employeeSelect');
   sel.innerHTML = '<option value="">— Jump to employee —</option>';
   Object.keys(employeeMap).sort((a,b) => employeeMap[a].original.localeCompare(employeeMap[b].original)).forEach(norm => {
+    const emp = employeeMap[norm];
+    const position = emp.records[Object.keys(emp.records)[0]]?.['Position'] || 'Unknown';
     const opt = document.createElement('option');
     opt.value = norm;
-    opt.textContent = employeeMap[norm].original;
+    opt.textContent = `${emp.original} (${position})`;
     sel.appendChild(opt);
   });
   sel.onchange = e => e.target.value && showEmployeeDetail(e.target.value);
@@ -454,8 +492,13 @@ function showEmployeeDetail(norm) {
   const emp = employeeMap[norm];
   if (!emp) return;
   const name = emp.original;
+  const position = emp.records[Object.keys(emp.records)[0]]?.['Position'] || 'N/A';
+  // Use position-specific required trainings
+  const requiredList = POSITION_REQUIREMENTS[position] || REQUIRED_TRAININGS;
   const over = Object.entries(emp.records).filter(([,r]) => r['Status'] === 'Overdue').length;
-  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div><p class="text-muted">Trainings grouped by category | Overdues: ${over}</p><div class="table-responsive">`;
+  let html = `<div class="card-body"><div class="d-flex justify-content-between"><h4>${name}</h4><div><button class="btn btn-success btn-sm" onclick="exportPDF()">PDF</button><button class="btn btn-primary btn-sm" onclick="openOutlookEmail('${norm}')">Send Email</button></div></div>`;
+  html += `<p class="text-muted mb-1">Position: <strong>${position}</strong> | Trainings grouped by category | Overdues: ${over}</p>`;
+  html += `<div class="table-responsive">`;
   const addSection = (title, topics) => {
     if (topics.length === 0) return;
     html += `<div class="section-header">${title}</div><table class="table table-sm table-hover"><thead><tr><th>Topic</th><th>Training Date</th><th>Completion Date</th><th>Expiration Date</th><th>Days Remaining</th><th>Status</th></tr></thead><tbody>`;
@@ -469,9 +512,9 @@ function showEmployeeDetail(norm) {
     });
     html += `</tbody></table>`;
   };
-  addSection("Required Trainings", REQUIRED_TRAININGS);
+  addSection("Required Trainings", requiredList);
   addSection("Suggested Trainings", SUGGESTED_TRAININGS);
-  const additional = Object.keys(emp.records).filter(t => !REQUIRED_TRAININGS.includes(t) && !SUGGESTED_TRAININGS.includes(t));
+  const additional = Object.keys(emp.records).filter(t => !requiredList.includes(t) && !SUGGESTED_TRAININGS.includes(t));
   addSection("Additional Trainings", additional);
   html += `</div></div>`;
   document.getElementById('detailPane').innerHTML = html;
@@ -491,7 +534,7 @@ if (localStorage.getItem('darkMode') === 'true') {
 }
 
 buildData();
-setInterval(buildData, 600000); // refresh every 10 minutes
+setInterval(buildData, 600000);
 </script>
 </body>
 </html>
